@@ -1,0 +1,30 @@
+Train a verifiable code-generation model using GRPO (shorter-run variant).
+
+Use this when you want a good demo in a few hours and you care about fast
+iteration and clear feedback.
+
+## Key differences vs the full recipe
+
+- Bias toward smaller prompt subsets per call so you get frequent optimizer
+  updates and frequent chances to adapt.
+- Keep `max_tokens` only as large as needed for solutions to complete; overly
+  large generations slow down sampling and can increase timeouts.
+
+## What to do
+
+1. Build a pool of code problems with executable verifiers (unit tests or a checker).
+2. Sample a small fresh subset each training call (do not reuse the exact same subset).
+3. Run `train_grpo_step(..., num_iterations=1)` repeatedly.
+4. After each call:
+   - Check reward trend, no-signal breakdown (ALL 0s vs ALL 1s), and KL.
+   - Make one adjustment if needed (data difficulty, temperature, learning rate, max_tokens).
+5. Call `sample()` periodically on a fixed set of "demo prompts" so you can see improvement.
+6. Save and finish when behavior is stable.
+
+## Reward guidance
+
+Use a deterministic offline reward that:
+- Extracts code robustly (markdown, code fences, reasoning tags).
+- Executes against the verifier in a sandboxed subprocess with a timeout.
+- Returns partial credit when possible (e.g., tests passed / total tests).
+

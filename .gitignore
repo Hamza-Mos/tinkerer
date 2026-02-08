@@ -1,0 +1,53 @@
+# Claude/Cursor
+.claude/
+.cursorrules
+.cursor/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# Modal
+.modal/
+
+# Test caches
+.pytest_cache/
+
+# W&B
+wandb/
+
+scratchpad/
+
+blog/

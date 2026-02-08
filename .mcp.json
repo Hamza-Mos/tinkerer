@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hf-datasets": {
+      "command": "python",
+      "args": ["mcp-servers/hf-datasets/server.py"]
+    },
+    "tinker": {
+      "command": "python",
+      "args": ["-m", "tinker_mcp"]
+    }
+  }
+}

@@ -1,0 +1,84 @@
+Train a verifiable code-generation model using GRPO.
+
+This is a recipe for tasks where correctness can be checked by running tests.
+Do NOT treat this as a rigid script. Use it to make good decisions.
+Do NOT substitute a different task (for example, arithmetic quick-wins); stay on verifiable code generation.
+
+## What "good" looks like
+
+- Mixed outcomes per prompt group (some completions pass, some fail).
+- Low hard-failure rates (token/logprob issues, reward crashes).
+- Stable KL (no big spikes) and reward trend improving across calls.
+
+## Data strategy (two-level)
+
+1. Build a prompt pool for diversity.
+2. For each training call, sample a smaller fresh subset from the pool.
+
+Avoid passing the full pool into one `train_grpo_step()` call:
+- It delays feedback.
+- Debugging becomes slow.
+- If something is wrong (reward bug, truncation, formatting), you waste time.
+
+## Prompt format guidance
+
+Each pool item should be:
+- `prompt`: a clear task statement + any constraints (language/version, function signature, etc)
+- `ground_truth`: a verifier payload (usually unit tests or a checker)
+
+Keep prompts unambiguous:
+- Specify the function name/signature.
+- Provide enough examples/tests to prevent reward hacking.
+- Avoid prompts that are so trivial that every completion passes.
+
+## Reward function requirements (GRPO)
+
+Reward must define:
+`compute_reward(completion: str, ground_truth: str) -> float`
+
+Principles:
+- Deterministic and offline (no network).
+- Never crash (return 0.0 on exceptions).
+- Robust extraction (models may output markdown, code fences, or reasoning tags).
+- Prefer partial credit when possible (e.g., fraction of tests passed).
+
+## Training loop (iterative)
+
+1. Initialize once:
+   - `init_grpo(base_model=..., ...)`
+
+2. Train in small steps:
+   - Repeatedly call `train_grpo_step(..., num_iterations=1)` with a fresh subset.
+   - Use warmup only on the first call of a fresh session.
+   - Prefer constant LR.
+     Do NOT use linear/cosine unless you also pass a fixed `scheduler_total_steps`
+     (otherwise iterative single-step calls can collapse the LR too quickly).
+
+3. Evaluate periodically:
+   - Call `sample()` every few calls on representative prompts.
+
+4. Save when stable:
+   - Save when outputs are consistently correct and KL is stable.
+   - Finish the session when done.
+
+Important runtime note:
+Within a single `train_grpo_step(..., num_iterations=1)` call, the harness
+samples + rewards the whole subset first, then runs the optimizer step.
+Large subsets can look "stuck" while sampling is still in progress.
+
+## Decision policy (after each call)
+
+- If no-signal is mostly ALL 0.0:
+  - Data too hard, reward too strict, or max_tokens too small.
+  - Simplify/curate prompts, add partial credit, increase max_tokens, and/or raise temperature.
+
+- If no-signal is mostly ALL 1.0:
+  - Converged or data too easy.
+  - Evaluate with `sample()`. If outputs are good, save and stop; otherwise increase difficulty.
+
+- If rewards oscillate or KL spikes:
+  - Reduce learning_rate (and/or reduce temperature).
+
+- If reward errors occur:
+  - Fix the reward function first; don't train through it.
+

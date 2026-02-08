@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tinker-mcp"
+version = "0.1.0"
+description = "MCP server for fine-tuning language models with Tinker"
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "Tinkerer Contributors"}
+]
+keywords = ["mcp", "tinker", "llm", "fine-tuning", "grpo", "sft"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[tool.setuptools]
+package-dir = {"" = "mcp-servers"}
+
+[tool.setuptools.packages.find]
+where = ["mcp-servers"]
+include = ["tinker_mcp*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["mcp-servers", "."]
+testpaths = ["tests"]

@@ -1,0 +1,44 @@
+Train a verifiable math reasoning model using GRPO.
+
+Use this recipe for math tasks where each example has a ground-truth final
+answer that can be checked deterministically.
+
+## Data strategy
+
+- Build a pool of math problems with `ground_truth` containing the expected final
+  answer (and optionally a verifier/checker).
+- Sample a smaller fresh subset per training call.
+- Aim for mixed outcomes (some successes, some failures) to get reward variance.
+
+## Reward design (critical)
+
+Reward must define:
+`compute_reward(completion: str, ground_truth: str) -> float`
+
+Guidelines:
+- Extract the model's *final answer* robustly (models may include reasoning,
+  multiple numbers, or formatting).
+- Use strict comparison for tasks with a single numeric/string answer.
+- Prefer partial credit if strict 0/1 produces too many uniform groups:
+  - Accept equivalent forms (e.g., simplified fractions).
+  - Give partial credit for correct intermediate structure when feasible.
+- Deterministic and offline. Never crash.
+
+## Hyperparameter principles
+
+- `max_tokens`: must cover the full reasoning path *and* the final answer.
+  If outputs truncate, rewards often collapse to 0.0.
+- `temperature`: increase if low variance; decrease if outputs are chaotic.
+- `learning_rate`: start conservative; reduce if KL spikes or rewards oscillate.
+- Prefer constant LR unless you explicitly plan a decay horizon.
+
+## Training loop
+
+1. `init_grpo(base_model=..., ...)`
+2. Repeat:
+   - `train_grpo_step(..., num_iterations=1)` on a fresh subset.
+   - Review reward trend, no-signal breakdown (ALL 0s vs ALL 1s), and KL.
+   - Adjust data/reward/hyperparams as needed.
+3. Periodically `sample()` on a fixed set of evaluation prompts.
+4. Save + finish when stable.
+

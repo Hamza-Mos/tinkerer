@@ -1,0 +1,18 @@
+{
+  "include": [
+    "mcp-servers",
+    "scripts",
+    "tests",
+    "modal"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules"
+  ],
+  "extraPaths": [
+    "mcp-servers"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}

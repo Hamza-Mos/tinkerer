@@ -1,0 +1,24 @@
+[mcp_servers.hf-datasets]
+command = "python"
+args = ["/app/mcp-servers/hf-datasets/server.py"]
+env_vars = ["HF_TOKEN"]
+cwd = "/app"
+
+[mcp_servers.tinker]
+command = "python"
+args = ["-m", "tinker_mcp"]
+env_vars = [
+  "TINKER_API_KEY",
+  "WANDB_API_KEY",
+  "WANDB_PROJECT",
+  "WANDB_ENTITY",
+  "WANDB_GROUP",
+  "HF_TOKEN",
+  "TINKERER_DEBUG",
+  "TINKERER_CHECKPOINT_PREFIX",
+]
+cwd = "/app"
+startup_timeout_sec = 20
+# Tinker training/sampling calls can legitimately take many minutes. Keep this
+# below the Modal watchdog timeout (35 min) but high enough for GRPO/SFT steps.
+tool_timeout_sec = 1800

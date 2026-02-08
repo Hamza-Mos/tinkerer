@@ -1,0 +1,112 @@
+name: Live Model Matrix Smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      methods:
+        description: "Comma-separated methods to run"
+        required: false
+        default: "sft,grpo"
+      lora_rank:
+        description: "LoRA rank for smoke runs"
+        required: false
+        default: "8"
+      group_size:
+        description: "GRPO group size"
+        required: false
+        default: "4"
+      max_tokens:
+        description: "GRPO max tokens"
+        required: false
+        default: "96"
+      allow_failures:
+        description: "Allowed failed checks per family"
+        required: false
+        default: "0"
+      debug:
+        description: "Enable debug logging"
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 12 * * 1"
+
+jobs:
+  matrix-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [base, instruction, hybrid, reasoning]
+    env:
+      TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
+      WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      METHODS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.methods || 'sft,grpo' }}
+      LORA_RANK: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.lora_rank || '8' }}
+      GROUP_SIZE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.group_size || '4' }}
+      MAX_TOKENS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.max_tokens || '96' }}
+      ALLOW_FAILURES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.allow_failures || '0' }}
+      DEBUG_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug || 'false' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for TINKER_API_KEY
+        id: check-secret
+        run: |
+          if [ -z "$TINKER_API_KEY" ]; then
+            echo "Skipping live model matrix smoke: TINKER_API_KEY secret is not configured."
+            echo "To enable this workflow, add TINKER_API_KEY to your repository secrets."
+            echo "has_secret=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_secret=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.check-secret.outputs.has_secret == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Dependencies
+        if: steps.check-secret.outputs.has_secret == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install -e .
+
+      - name: Run Live Smoke Matrix
+        if: steps.check-secret.outputs.has_secret == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          DEBUG_FLAG=""
+          if [ "${DEBUG_MODE}" = "true" ]; then
+            DEBUG_FLAG="--debug"
+          fi
+          python scripts/live_model_matrix_smoke.py \
+            --families "${{ matrix.family }}" \
+            --methods "${METHODS}" \
+            --lora-rank "${LORA_RANK}" \
+            --group-size "${GROUP_SIZE}" \
+            --max-tokens "${MAX_TOKENS}" \
+            --allow-failures "${ALLOW_FAILURES}" \
+            --report-path "artifacts/live-smoke-${{ matrix.family }}.json" \
+            ${DEBUG_FLAG}
+
+      - name: Upload Smoke Report
+        if: steps.check-secret.outputs.has_secret == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-${{ matrix.family }}
+          path: artifacts/live-smoke-${{ matrix.family }}.json
+          if-no-files-found: warn
+

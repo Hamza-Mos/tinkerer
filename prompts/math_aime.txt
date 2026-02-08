@@ -1,0 +1,45 @@
+Train on hard verifiable math using GRPO.
+
+This recipe is for "olympiad-style" math where:
+- baseline pass rates are low,
+- solutions require long reasoning,
+- correctness can still be verified from a final answer.
+
+## What makes hard math different
+
+- You often need larger `max_tokens` to avoid truncation.
+- Reward design is extremely sensitive to answer extraction.
+- Many prompts may be uniformly ALL 0.0 early on. That is expected; use partial
+  credit or curate for slightly easier instances to create variance.
+
+## Data strategy
+
+- Build a pool with `prompt` and `ground_truth` (final answer, and optionally a verifier).
+- Sample smaller fresh subsets per call so you can iterate on reward/data quickly.
+- Prefer prompts that occasionally succeed under the current policy to create signal.
+
+## Reward guidelines
+
+Reward must define:
+`compute_reward(completion: str, ground_truth: str) -> float`
+
+Hard-math reward principles:
+- Robustly extract the final answer (models may produce multiple candidates).
+- Be explicit about acceptable formats (integer, reduced fraction, etc).
+- Consider partial credit:
+  - Correct answer with minor formatting differences.
+  - Correct intermediate structure when feasible (only if deterministic).
+- Deterministic, offline, never crash.
+
+## Training loop
+
+1. `init_grpo(base_model=..., ...)`
+2. Repeat:
+   - `train_grpo_step(..., num_iterations=1)` with fresh subsets.
+   - Watch: no-signal breakdown (ALL 0s vs ALL 1s), KL stability, reward trend.
+   - Adjust: max_tokens (truncation), learning_rate (stability), temperature (variance),
+     and data difficulty (signal availability).
+3. `sample()` frequently on a small fixed evaluation set; for hard math, metric
+   noise is high, so qualitative checks matter.
+4. Save + finish when behavior is stable.
+

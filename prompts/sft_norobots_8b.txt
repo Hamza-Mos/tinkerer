@@ -1,0 +1,34 @@
+SFT demo: supervised fine-tuning on instruction/response examples.
+
+Use this recipe when "good" is subjective and you have high-quality examples.
+
+## Data strategy
+
+- Choose a dataset (or internal examples) with:
+  - `prompt`: the input instruction/context
+  - `response`: the desired output
+- Filter for quality: remove low-effort, unsafe, or inconsistent examples.
+- Keep a small validation split so you can detect overfitting early.
+
+## Training loop (iterative)
+
+1. Initialize once:
+   - `init_sft(base_model=..., lora_rank=...)`
+
+2. Train in small increments:
+   - Call `train_sft_step(..., num_epochs=1)` repeatedly.
+   - After each epoch:
+     - Check train loss and validation loss (if provided).
+     - Use `sample()` to inspect qualitative output changes.
+
+3. Stop criteria:
+   - If validation loss rises while train loss falls: stop (overfitting).
+   - If outputs look good and changes stabilize: save and finish.
+
+## Decision policy
+
+- If loss spikes or outputs degrade: reduce learning rate.
+- If learning is slow and losses are stable: consider slightly increasing learning rate
+  or improving data quality/consistency.
+- If the model starts copying training examples verbatim: increase validation, reduce epochs, or reduce LR.
+

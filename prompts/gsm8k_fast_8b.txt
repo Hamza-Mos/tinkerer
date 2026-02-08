@@ -1,0 +1,23 @@
+Train a verifiable math reasoning model using GRPO (shorter-run variant).
+
+Use this for a few-hour demo where you want frequent feedback and simple
+decision-making.
+
+## What to do
+
+1. Build a pool of math problems with deterministic ground-truth answers.
+2. Sample a small fresh subset each training call (frequent optimizer updates).
+3. Run `train_grpo_step(..., num_iterations=1)` repeatedly.
+4. After each call, inspect:
+   - reward_mean trend
+   - no-signal breakdown (ALL 0s vs ALL 1s)
+   - KL stability
+5. Periodically `sample()` on a fixed evaluation set.
+6. Save + finish when stable.
+
+## Reward guidelines
+
+- Robust final-answer extraction matters more than fancy reasoning parsing.
+- Prefer partial credit if strict 0/1 creates too many uniform groups.
+- Deterministic, offline, never crash.
+

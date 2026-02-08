@@ -1,0 +1,95 @@
+# Verifiable Task GRPO Recipe (Template)
+
+Use this as a reusable, model-agnostic prompt for GRPO on *any verifiable
+task* (code, math, structured output, etc.).
+
+Your job:
+- Pick a dataset/prompt source with ground truth.
+- Build a prompt pool that produces mixed outcomes (some successes, some failures).
+- Write a deterministic reward function.
+- Train iteratively and adapt based on metrics.
+
+## 1) Choose Method
+
+- If you can verify correctness programmatically from `(completion, ground_truth)`: use GRPO.
+- If quality is subjective: use SFT instead.
+
+## 2) Data Strategy (Critical)
+
+GRPO needs *variance* within each prompt group. The best training signal comes
+from prompts where the current policy sometimes succeeds and sometimes fails.
+
+Use a two-level strategy:
+1. Keep a reasonably large prompt pool for diversity.
+2. For each training call, sample a smaller fresh subset from that pool.
+
+Avoid:
+- Training on the entire pool in one call (slow feedback; harder debugging).
+- A pool where nearly everything is uniformly solved (ALL 1.0 groups).
+- A pool where nearly everything uniformly fails (ALL 0.0 groups).
+
+## 3) Reward Function (Contract + Hygiene)
+
+Your reward code must define:
+`compute_reward(completion: str, ground_truth: str) -> float`
+
+Requirements:
+- Deterministic and offline (no network calls).
+- Never crash (return 0.0 on any exception).
+- Prefer partial credit when possible (binary 0/1 rewards often create too many
+  uniform-reward groups and stall learning).
+
+Preflight:
+- Run the reward on a few sampled examples before training.
+- Confirm it is not always returning the same value.
+
+## 4) Hyperparameters (Heuristics)
+
+Use principles, then adapt:
+- `max_tokens`: must fit a full solution AND a final answer. If rewards are all
+  0.0 and outputs look truncated, increase it.
+- `temperature`: increase if samples are too similar (low variance); decrease if
+  outputs are chaotic and rewards are noisy.
+- `group_size`: use the model's recommended group size when available. Increase
+  if advantage estimates are too noisy; decrease if sampling cost dominates.
+- `learning_rate`: start conservative. If reward oscillates or KL spikes, reduce
+  it. If nothing changes and KL is tiny, it may be too low.
+- Scheduling: default to constant LR.
+  Do NOT use linear/cosine unless you also pass a fixed `scheduler_total_steps`
+  (otherwise iterative single-step calls can collapse the LR too quickly).
+- Warmup: use warmup on the first call of a fresh session; do not restart warmup
+  on continued training.
+
+## 5) Training Loop (Iterative)
+
+Always prefer short, controllable steps:
+- GRPO: `train_grpo_step(..., num_iterations=1)` repeatedly.
+- After each call:
+  - Read `reward_mean`, `no_signal_rate`, ALL-0 vs ALL-1 breakdown, and KL.
+  - Take one action (continue, adjust, change data/reward, save, stop).
+- Call `sample()` periodically to validate real outputs.
+
+Important runtime note:
+Within a single GRPO call, the harness samples/rewards the whole subset first,
+then runs the optimizer step. Large subsets can look "stuck" while sampling is
+still running.
+
+## 6) Decision Policy (What To Do After Each Call)
+
+- Mostly ALL 0.0 no-signal:
+  - Data is too hard, reward too strict, or max_tokens too small.
+  - Simplify prompts, add partial credit, increase max_tokens, and/or increase temperature.
+- Mostly ALL 1.0 no-signal:
+  - Converged or data too easy.
+  - Evaluate with `sample()`. If outputs are good, save and stop; otherwise increase difficulty.
+- KL spikes or rewards oscillate:
+  - Reduce learning_rate (and/or reduce temperature).
+- Reward errors / exceptions:
+  - Fix reward function first; don't train through it.
+
+## 7) Output Expectations
+
+When you complete the run:
+- Save a checkpoint with a descriptive name.
+- Report what changed (reward trend, no-signal breakdown, examples from `sample()`).
+- If results are flat, explain the likely bottleneck (reward design, data difficulty, model capacity).

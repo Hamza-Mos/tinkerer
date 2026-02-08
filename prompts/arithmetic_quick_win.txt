@@ -1,0 +1,39 @@
+Fast GRPO "wow" demo: verifiable arithmetic.
+
+Prompt:
+- Take a small base model and train it to reliably answer simple arithmetic
+  problems with a deterministic reward.
+
+Why this works as a demo:
+- You control the data distribution (synthetic generation).
+- Verification is trivial (exact numeric match).
+- You can quickly observe reward trend + output quality improvements.
+
+## What to do
+
+1. Generate a synthetic prompt pool:
+   - Create arithmetic prompts (addition/subtraction/multiplication).
+   - Store the correct answer as `ground_truth`.
+   - Ensure the pool has a mix of easy and moderately hard instances so you get
+     variance (not all pass, not all fail).
+
+2. Reward function:
+   - Extract the model's final numeric answer robustly.
+   - Reward 1.0 for exact match, 0.0 otherwise (or partial credit if helpful).
+   - Deterministic, offline, never crash.
+
+3. Train iteratively:
+   - `init_grpo(base_model=..., ...)`
+   - Call `train_grpo_step(..., num_iterations=1)` repeatedly with fresh subsets.
+   - Use warmup only on the first call of a fresh session.
+
+4. Evaluate:
+   - Call `sample()` on a fixed small set of arithmetic prompts every few calls.
+   - Save when outputs are consistently correct.
+
+## What to watch
+
+- Early on, no-signal may be mostly ALL 0.0 (model failing). As training works,
+  no-signal often shifts toward ALL 1.0 (convergence).
+- If outputs truncate or include lots of extra text, adjust `max_tokens` and
+  reward extraction to focus on the final answer.
